@@ -1,0 +1,11 @@
+[Unit]
+Description=PiStomp periodic sync
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=30min
+Persistent=true
+Unit=pistomp-sync.service
+
+[Install]
+WantedBy=timers.target

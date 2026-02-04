@@ -1,0 +1,53 @@
+version: 1
+
+execution:
+  mode: timer        # manual | timer | boot-shutdown
+
+  timer:
+    on_boot_sec: 5m
+    on_unit_active_sec: 30m
+
+  boot_shutdown:
+    boot: true
+    shutdown: true
+
+remote:
+  name: nc
+  path: nc:pistomp
+
+defaults:
+  checksum: true
+  dry_run: false
+  log_level: INFO
+
+paths:
+
+  lv2:
+    enabled: true
+    local: /home/pistomp/.lv2
+    remote: lv2
+    mode: upload
+
+  pedalboards:
+    enabled: true
+    local: /home/pistomp/data/.pedalboards
+    remote: pedalboards
+    mode: bidirectional
+
+  banks:
+    enabled: true
+    local: /home/pistomp/data/banks.json
+    remote: banks.json
+    mode: bidirectional
+
+  favorites:
+    enabled: true
+    local: /home/pistomp/data/favorites.json
+    remote: favorites.json
+    mode: bidirectional
+
+  user_files:
+    enabled: true
+    local: /home/pistomp/data/user-files
+    remote: user-files
+    mode: upload

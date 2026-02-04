@@ -1,0 +1,194 @@
+#!/bin/bash
+set -euo pipefail
+
+# ============================================================
+# Directories and paths
+# ============================================================
+BASE="/home/pistomp/data"
+CONFIG="$BASE/config/sync.yml"
+
+SYNC_BASE="$BASE/sync"
+STATE="$SYNC_BASE/state"
+LOGDIR="$SYNC_BASE/logs"
+LOCKDIR="$SYNC_BASE/locks"
+LOCKFILE="$LOCKDIR/sync.lock"
+SCRIPT_LOG="$SYNC_BASE/pistomp-sync.log"
+
+mkdir -p "$STATE" "$LOGDIR" "$LOCKDIR"
+
+# ============================================================
+# Global logging
+# ============================================================
+exec > >(tee -a "$SCRIPT_LOG") 2>&1
+echo "### Starting pistomp-sync.sh at $(date) ###"
+
+# ============================================================
+# CLI options
+# ============================================================
+DRY_RUN=""
+if [[ "${1:-}" == "--dry-run" ]]; then
+    DRY_RUN="--dry-run"
+    echo "### DRY-RUN mode enabled ###"
+fi
+
+# ============================================================
+# Lock
+# ============================================================
+exec 9>"$LOCKFILE"
+flock -n 9 || { echo "Another instance running, exiting."; exit 0; }
+
+# ============================================================
+# Remote config
+# ============================================================
+REMOTE_NAME=$(sed -n 's/^[[:space:]]*name:[[:space:]]*//p' "$CONFIG" | head -n1)
+REMOTE_BASE=$(sed -n 's/^[[:space:]]*base_path:[[:space:]]*//p' "$CONFIG" | head -n1)
+
+if [[ -z "$REMOTE_NAME" || -z "$REMOTE_BASE" ]]; then
+    echo "Invalid remote configuration"
+    exit 1
+fi
+
+echo "Using remote: $REMOTE_NAME:$REMOTE_BASE"
+
+if ! rclone listremotes | grep -q "^${REMOTE_NAME}:"; then
+    echo "Remote '$REMOTE_NAME' not found in rclone config"
+    exit 1
+fi
+
+# ============================================================
+# Utilities
+# ============================================================
+ensure_remote_path() {
+    local remote="$1"
+
+    if rclone lsf "$remote" >/dev/null 2>&1; then
+        return 0
+    fi
+
+    echo "Creating remote path: $remote"
+    if ! rclone mkdir "$remote" $DRY_RUN; then
+        echo "Warning: could not create remote path (ignored): $remote"
+    fi
+}
+
+# Ajouter .keep dans les dossiers vides
+add_keep_file() {
+    local path="$1"
+    if [ -d "$path" ] && [ -z "$(ls -A "$path")" ]; then
+        echo "Adding .keep to empty directory: $path"
+        touch "$path/.keep"
+    fi
+}
+
+# ============================================================
+# Sync function (files AND directories)
+# ============================================================
+sync_path() {
+    local name="$1"
+    local local_path="$2"
+    local remote_sub="$3"
+    local mode="$4"
+
+    local remote_root="$REMOTE_NAME:$REMOTE_BASE"
+    local remote_path="$REMOTE_NAME:$REMOTE_BASE/$remote_sub"
+    local log="$LOGDIR/$name.log"
+
+    echo "--------------------------------------------------"
+    echo "[$name]"
+    echo "  local : $local_path"
+    echo "  remote: $remote_path"
+    echo "  mode  : $mode"
+
+    ensure_remote_path "$remote_root"
+
+    # ---------------------------
+    # FILES: use rclone copy
+    # ---------------------------
+    if [ -f "$local_path" ]; then
+        echo "[$name] single file detected, using rclone copy"
+        rclone copy "$local_path" "$remote_path" $DRY_RUN --log-file="$log"
+        return
+    fi
+
+    # ---------------------------
+    # Directories: add .keep if empty
+    # ---------------------------
+    add_keep_file "$local_path"
+
+    case "$mode" in
+        upload)
+            rclone sync "$local_path" "$remote_path" \
+                --checksum \
+                --create-empty-src-dirs \
+                $DRY_RUN \
+                --log-file="$log"
+            ;;
+        download)
+            rclone sync "$remote_path" "$local_path" \
+                --checksum \
+                $DRY_RUN \
+                --log-file="$log"
+            ;;
+	bidirectional)
+	    local workdir="$STATE/$name"
+	    mkdir -p "$workdir"
+	    ensure_remote_path "$remote_path"
+
+	    # Check if workdir is empty (première sync)
+	    if [ -z "$(ls -A "$workdir")" ]; then
+	        echo "[$name] first bisync run: using --resync"
+	        BISYNC_FLAGS="--resync --resilient --conflict-resolve newer"
+	    else
+	        BISYNC_FLAGS="--resilient --conflict-resolve newer"
+	    fi
+
+	    if ! rclone bisync "$local_path" "$remote_path" \
+	            $BISYNC_FLAGS \
+	            --workdir="$workdir" \
+	            $DRY_RUN \
+	            --log-file="$log"; then
+	        echo "[$name] bisync failed (continuing)"
+	    fi
+	    ;;
+        *)
+            echo "[$name] Invalid mode: $mode"
+            ;;
+    esac
+}
+
+# ============================================================
+# YAML parsing
+# ============================================================
+TMP=$(mktemp)
+echo "Parsing YAML config..."
+
+awk '
+BEGIN { in_paths=0 }
+/^[[:space:]]*paths:[[:space:]]*$/ { in_paths=1; next }
+in_paths && /^[^[:space:]]/ { in_paths=0 }
+in_paths && /^[[:space:]]*[^:]+:[[:space:]]*$/ {
+  if (path!="" && enabled=="true")
+    print path "|" local "|" remote "|" mode
+  path=$1; sub(":","",path)
+  enabled=local=remote=mode=""
+}
+in_paths && /enabled:/ { enabled=$NF }
+in_paths && /local:/   { local=$NF }
+in_paths && /remote:/  { remote=$NF }
+in_paths && /mode:/    { mode=$NF }
+END { if (path!="" && enabled=="true") print path "|" local "|" remote "|" mode }
+' "$CONFIG" > "$TMP"
+
+echo "Paths to sync:"
+cat "$TMP"
+
+# ============================================================
+# Execution loop
+# ============================================================
+while IFS="|" read -r name local_path remote_sub mode; do
+    sync_path "$name" "$local_path" "$remote_sub" "$mode"
+done < "$TMP"
+
+rm -f "$TMP"
+
+echo "### pistomp-sync.sh finished at $(date) ###"

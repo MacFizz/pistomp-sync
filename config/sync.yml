@@ -1,0 +1,42 @@
+version: 1
+
+remote:
+  name: nxt
+  base_path: pistomp-sync
+
+paths:
+  pedalboards:
+    enabled: true
+    local: /home/pistomp/data/.pedalboards
+    remote: pedalboards
+    mode: bidirectional
+
+  banks:
+    enabled: true
+    local: /home/pistomp/data/banks.json
+    remote: banks.json
+    mode: bidirectional
+
+  favorites:
+    enabled: true
+    local: /home/pistomp/data/favorites.json
+    remote: favorites.json
+    mode: bidirectional
+
+  user_files:
+    enabled: false
+    local: /home/pistomp/data/user-files
+    remote: user-files
+    mode: bidirectional
+
+  pistomp-config:
+    enabled: false
+    local: /home/pistomp/data/config
+    remote: config
+    mode: bidirectional
+
+  keys:
+    enabled: false
+    local: /home/pistomp/data/keys
+    remote: keys
+    mode: bidirectional

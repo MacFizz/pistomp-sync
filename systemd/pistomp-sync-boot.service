@@ -1,0 +1,13 @@
+[Unit]
+Description=PiStomp Sync (boot)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pistomp
+ExecStart=/usr/local/lib/pistomp-sync/pistomp-sync.sh
+Environment=RCLONE_CONFIG=/home/pistomp/.config/rclone/rclone.conf
+
+[Install]
+WantedBy=multi-user.target
