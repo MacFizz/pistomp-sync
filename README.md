@@ -22,4 +22,4 @@ via rclone (bisync + copy).
 ```bash
 git clone https://github.com/<ton_user>/pistomp-sync.git
 cd pistomp-sync
-sudo ./deploy.sh
+sudo ./install.sh
