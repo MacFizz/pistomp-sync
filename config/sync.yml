@@ -1,8 +1,12 @@
 version: 1
 
-remote:
-  name: nxt
-  base_path: pistomp-sync
+rclone:
+  remote: nxt
+  base_path: Apps/pistomp-sync
+
+options:
+  auto_init_bisync: true
+  create_keep_file: true
 
 paths:
   pedalboards:
@@ -29,7 +33,7 @@ paths:
     remote: user-files
     mode: bidirectional
 
-  pistomp-config:
+  pistomp_config:
     enabled: false
     local: /home/pistomp/data/config
     remote: config
