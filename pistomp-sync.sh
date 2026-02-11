@@ -127,6 +127,23 @@ for pathname in "${PATH_NAMES[@]}"; do
         WORKDIR="$STATE_DIR/$pathname"
         mkdir -p "$WORKDIR"
 
+        WORKDIR="$STATE_DIR/$pathname"
+        mkdir -p "$WORKDIR"
+
+        # --- Détection premier run bisync ---
+        if [[ -z $(ls -A "$WORKDIR" 2>/dev/null) ]]; then
+            log "### No previous bisync state detected → first run, performing initial copy from remote"
+            log_path "No previous bisync state → initial copy from $DST to $SRC" "$pathname"
+
+            # Copier depuis le remote vers le local
+            if ! rclone copy -L "$DST" "$SRC" "${RCLONE_OPTS[@]}" >> "${PATH_LOGS[$pathname]}" 2>&1; then
+                log_path "Initial copy from remote failed" "$pathname"
+                log "[$pathname] rclone copy exit code=$?"
+            else
+                log_path "Initial copy completed successfully" "$pathname"
+            fi
+        fi
+
         [[ ! -d "$SRC" ]] && {
             log "Local source $SRC missing, skipping"
             log_path "Local source missing, skipping" "$pathname"
@@ -136,16 +153,16 @@ for pathname in "${PATH_NAMES[@]}"; do
         log "Running bisync $SRC <-> $DST"
         log_path "Running bisync $SRC <-> $DST" "$pathname"
 
-	set +e
+        set +e
         rclone bisync -L "$SRC" "$DST" \
             --workdir "$WORKDIR" \
             --ignore-errors \
             --resilient \
-            --check-access \
+#            --check-access \
             "${RCLONE_OPTS[@]}" \
             >> "${PATH_LOGS[$pathname]}" 2>&1
         rc=$?
-	set -e
+        set -e
 
         if [[ $rc -ne 0 ]]; then
             log_path "rclone bisync exited with code $rc (see log)" "$pathname"
@@ -164,13 +181,13 @@ for pathname in "${PATH_NAMES[@]}"; do
         log "Running copy $SRC -> $DST"
         log_path "Running copy $SRC -> $DST" "$pathname"
 
-	set +e
+        set +e
         rclone copy -L "$SRC" "$DST" \
             "${RCLONE_OPTS[@]}" \
             --ignore-errors \
             >> "${PATH_LOGS[$pathname]}" 2>&1
         rc=$?
-	set -e
+        set -e
 
         if [[ $rc -ne 0 ]]; then
             log_path "rclone copy exited with code $rc (see log)" "$pathname"
