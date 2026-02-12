@@ -2,7 +2,7 @@
 # pistomp-sync.sh - Synchronisation multi-répertoires et fichiers avec rclone
 
 # Configuration
-CONFIG_FILE="${CONFIG_FILE:-$HOME/.config/pistomp-sync.conf}"
+CONFIG_FILE="${CONFIG_FILE:-/etc/pistomp-sync/pistomp-sync.conf}"
 LOCK_FILE="nxt:Apps/pistomp_sync/.rclone-sync.lock"
 MACHINE_ID="$(hostname)-$$"
 MAX_LOCK_AGE=600  # 10 minutes
