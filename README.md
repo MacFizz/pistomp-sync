@@ -14,12 +14,11 @@ via rclone (bisync + copy).
 
 ## Prérequis
 - rclone configuré
-- remote monté (ex: /mnt/rclone/nxt)
 - systemd
 
 ## Installation
 
 ```bash
-git clone https://github.com/<ton_user>/pistomp-sync.git
+git clone https://github.com/macfizz/pistomp-sync.git
 cd pistomp-sync
-sudo ./install.sh
+sudo ./install-pistomp-sync.sh
